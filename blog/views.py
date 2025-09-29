@@ -15,7 +15,14 @@ class PostList(generic.ListView):
 # FUNCTION-BASED VIEW FOR POST DETAIL AND COMMENT HANDLING
 def post_detail(request, slug):
     post = get_object_or_404(Post, slug=slug, status=1)
-    comments = post.comments.filter(approved=True).order_by('-created_on')
+
+    if request.user.is_authenticated:
+        approved_comments = post.comments.filter(approved=True)
+        user_pending_comments = post.comments.filter(approved=False, author=request.user)
+        comments = (approved_comments | user_pending_comments).order_by('-created_on')
+    else:
+        comments = post.comments.filter(approved=True).order_by('-created_on')
+
     comment_count = comments.count()
 
     if request.method == "POST":
