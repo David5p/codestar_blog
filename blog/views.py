@@ -1,32 +1,57 @@
-from django.shortcuts import render, get_object_or_404, redirect  # ✅
-from django.urls import reverse
+from django.shortcuts import render, get_object_or_404, reverse
 from django.views import generic
 from django.contrib import messages
 from django.http import HttpResponseRedirect
 from .models import Post, Comment
 from .forms import CommentForm
 
-# CLASS-BASED VIEW FOR POST LIST
+# Create your views here.
+
+
 class PostList(generic.ListView):
+    """
+    Returns all published posts in :model:`blog.Post`
+    and displays them in a page of six posts.
+    **Context**
+
+    ``queryset``
+        All published instances of :model:`blog.Post`
+    ``paginate_by``
+        Number of posts per page.
+
+    **Template:**
+
+    :template:`blog/index.html`
+    """
     queryset = Post.objects.filter(status=1)
     template_name = "blog/index.html"
     paginate_by = 6
 
-# FUNCTION-BASED VIEW FOR POST DETAIL AND COMMENT HANDLING
+
 def post_detail(request, slug):
-    post = get_object_or_404(Post, slug=slug, status=1)
+    """
+    Display an individual :model:`blog.Post`.
 
-    if request.user.is_authenticated:
-        approved_comments = post.comments.filter(approved=True)
-        user_pending_comments = post.comments.filter(approved=False, author=request.user)
-        comments = (approved_comments | user_pending_comments).order_by('-created_on')
-    else:
-        comments = post.comments.filter(approved=True).order_by('-created_on')
+    **Context**
 
-    comment_count = comments.count()
+    ``post``
+        An instance of :model:`blog.Post`.
+    ``comments``
+        All approved comments related to the post.
+    ``comment_count``
+        A count of approved comments related to the post.
+    ``comment_form``
+        An instance of :form:`blog.CommentForm`
 
+    **Template:**
+
+    :template:`blog/post_detail.html`
+    """
+    queryset = Post.objects.filter(status=1)
+    post = get_object_or_404(queryset, slug=slug)
+    comments = post.comments.all().order_by("-created_on")
+    comment_count = post.comments.filter(approved=True).count()
     if request.method == "POST":
-        print("Received a POST request")
         comment_form = CommentForm(data=request.POST)
         if comment_form.is_valid():
             comment = comment_form.save(commit=False)
@@ -37,11 +62,8 @@ def post_detail(request, slug):
                 request, messages.SUCCESS,
                 'Comment submitted and awaiting approval'
             )
-            return redirect('post_detail', slug=post.slug)
-    else:
-        comment_form = CommentForm()
 
-    print("About to render template")
+    comment_form = CommentForm()
 
     return render(
         request,
@@ -50,24 +72,23 @@ def post_detail(request, slug):
             "post": post,
             "comments": comments,
             "comment_count": comment_count,
-            "comment_form": comment_form,
+            "comment_form": comment_form
         },
     )
 
-# FUNCTION-BASED VIEW FOR EVENTS
-def event_detail(request, event_id):
-    queryset = Event.objects.all()
-    event = get_object_or_404(queryset, event_id=event_id)
-
-    return render(
-        request,
-        "events/event_detail.html",
-        {"event": event}
-    )
 
 def comment_edit(request, slug, comment_id):
     """
-    view to edit comments
+    Display an individual comment for edit.
+
+    **Context**
+
+    ``post``
+        An instance of :model:`blog.Post`.
+    ``comment``
+        A single comment related to the post.
+    ``comment_form``
+        An instance of :form:`blog.CommentForm`
     """
     if request.method == "POST":
 
@@ -83,13 +104,22 @@ def comment_edit(request, slug, comment_id):
             comment.save()
             messages.add_message(request, messages.SUCCESS, 'Comment Updated!')
         else:
-            messages.add_message(request, messages.ERROR, 'Error updating comment!')
+            messages.add_message(request, messages.ERROR,
+                                 'Error updating comment!')
 
     return HttpResponseRedirect(reverse('post_detail', args=[slug]))
 
+
 def comment_delete(request, slug, comment_id):
     """
-    view to delete comment
+    Delete an individual comment.
+
+    **Context**
+
+    ``post``
+        An instance of :model:`blog.Post`.
+    ``comment``
+        A single comment related to the post.
     """
     queryset = Post.objects.filter(status=1)
     post = get_object_or_404(queryset, slug=slug)
@@ -99,6 +129,7 @@ def comment_delete(request, slug, comment_id):
         comment.delete()
         messages.add_message(request, messages.SUCCESS, 'Comment deleted!')
     else:
-        messages.add_message(request, messages.ERROR, 'You can only delete your own comments!')
+        messages.add_message(request, messages.ERROR,
+                             'You can only delete your own comments!')
 
     return HttpResponseRedirect(reverse('post_detail', args=[slug]))
